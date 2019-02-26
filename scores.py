@@ -26,7 +26,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.signal
 
-
+# Returns matrix of zeroes and ones of size 39x39; coordinates range from -19 to 19
+# The cells/bins fitting within the radius have ones, others - zeroes
 def circle_mask(size, radius, in_val=1.0, out_val=0.0):
   """Calculating the grid scores with different radius."""
   sz = [math.floor(size[0] / 2), math.floor(size[1] / 2)]
@@ -70,6 +71,7 @@ class GridScorer(object):
         in_val=1.0,
         out_val=np.nan)
 
+# 2D plot of average activation for every bin
   def calculate_ratemap(self, xs, ys, activations, statistic='mean'):
     return scipy.stats.binned_statistic_2d(
         xs,
@@ -79,6 +81,7 @@ class GridScorer(object):
         statistic=statistic,
         range=self._coords_range)[0]
 
+# Returns a mask as an annulus (ring)
   def _get_ring_mask(self, mask_min, mask_max):
     n_points = [self._nbins * 2 - 1, self._nbins * 2 - 1]
     return (circle_mask(n_points, mask_max * self._nbins) *
@@ -94,28 +97,36 @@ class GridScorer(object):
   def grid_score_90(self, corr):
     return corr[90] - (corr[45] + corr[135]) / 2
 
+  # seq1 - size 20x20
   def calculate_sac(self, seq1):
     """Calculating spatial autocorrelogram."""
+    # this is NOT a copy - it's the same object referenced by 2 variables
     seq2 = seq1
 
     def filter2(b, x):
+      # rotate the matrix b by 180 degrees  
       stencil = np.rot90(b, 2)
       return scipy.signal.convolve2d(x, stencil, mode='full')
 
+    # replace NaN with zero and infinity with smallest/largest number
     seq1 = np.nan_to_num(seq1)
     seq2 = np.nan_to_num(seq2)
 
+    # matrix 20x20 filled with ones
     ones_seq1 = np.ones(seq1.shape)
+    # replace 1 with 0 whenever the corresponding element in seq1 is NaN
     ones_seq1[np.isnan(seq1)] = 0
     ones_seq2 = np.ones(seq2.shape)
     ones_seq2[np.isnan(seq2)] = 0
 
+    # set NaN's to zeros
     seq1[np.isnan(seq1)] = 0
     seq2[np.isnan(seq2)] = 0
 
+    # squared values
     seq1_sq = np.square(seq1)
-    seq2_sq = np.square(seq2)
 
+    # seq1 convoluted with itself rotated by 180 degrees - what for??
     seq1_x_seq2 = filter2(seq1, seq2)
     sum_seq1 = filter2(seq1, ones_seq2)
     sum_seq2 = filter2(ones_seq1, seq2)
@@ -136,6 +147,8 @@ class GridScorer(object):
         np.divide(seq1_x_seq2, n_bins),
         np.divide(np.multiply(sum_seq1, sum_seq2), n_bins_sq))
     x_coef = np.divide(covar, np.multiply(std_seq1, std_seq2))
+    
+    # get rid of any unreal numbers that appeared rooting
     x_coef = np.real(x_coef)
     x_coef = np.nan_to_num(x_coef)
     return x_coef
