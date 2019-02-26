@@ -1,3 +1,7 @@
+# python train.py --task_root=/home/wsz/phd/reproduced_experiments/grid-cells/dataset/ --saver_results_directory=/home/wsz/phd/reproduced_experiments/grid-cells/results
+# yay -S --overwrite=/usr/lib/python3.7/site-packages/* python-tensorflow-git
+# -march=ivybridge -O2 -pipe
+
 # Copyright 2018 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,17 +23,33 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import matplotlib
-import numpy as np
-import tensorflow as tf
-import Tkinter  # pylint: disable=unused-import
 
-matplotlib.use('Agg')
+import os
+import pydevd
+pydevd.settrace(port=5678)
+
+
+import os
+import tkinter  # pylint: disable=unused-import
+
+import matplotlib
+from mpl_toolkits.mplot3d import axes3d
+import matplotlib.pyplot as plt
 
 import dataset_reader  # pylint: disable=g-bad-import-order, g-import-not-at-top
 import model  # pylint: disable=g-bad-import-order
+import numpy as np
 import scores  # pylint: disable=g-bad-import-order
+import tensorflow as tf
 import utils  # pylint: disable=g-bad-import-order
+
+np.set_printoptions(threshold=np.inf,linewidth=512)
+
+os.environ["CUDA_VISIBLE_DEVICES"]="-1" 
+
+
+#bylo wczesniej: matplotlib.use('Agg')
+matplotlib.use('TkAgg')
 
 
 # Task config
@@ -111,7 +131,7 @@ def train():
 
   # Create the motion models for training and evaluation
   data_reader = dataset_reader.DataReader(
-      FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=4)
+      FLAGS.task_dataset_info, root=FLAGS.task_root, num_threads=7)
   train_traj = data_reader.read(batch_size=FLAGS.training_minibatch_size)
 
   # Create the ensembles that provide targets during training
@@ -212,7 +232,7 @@ def train():
                       np.mean(loss_acc), np.std(loss_acc))
       if epoch % FLAGS.saver_eval_time == 0:
         res = dict()
-        for _ in xrange(FLAGS.training_evaluation_minibatch_size //
+        for _ in range(FLAGS.training_evaluation_minibatch_size //
                         FLAGS.training_minibatch_size):
           mb_res = sess.run({
               'bottleneck': bottleneck,
@@ -222,7 +242,7 @@ def train():
           res = utils.concat_dict(res, mb_res)
 
         # Store at the end of validation
-        filename = 'rates_and_sac_latest_hd.pdf'
+        filename = 'rates_and_sac_latest_hd_epoch' + str(epoch) + '.pdf'
         grid_scores['btln_60'], grid_scores['btln_90'], grid_scores[
             'btln_60_separation'], grid_scores[
                 'btln_90_separation'] = utils.get_scores_and_plot(

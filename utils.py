@@ -22,12 +22,13 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+
 from matplotlib.backends.backend_pdf import PdfPages
+
+import ensembles  # pylint: disable=g-bad-import-order
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-
-import ensembles  # pylint: disable=g-bad-import-order
 
 
 np.seterr(invalid="ignore")
@@ -112,7 +113,7 @@ def concat_dict(acc, new_data):
     else:
       return np.asarray([kk])
 
-  for k, v in new_data.iteritems():
+  for k, v in new_data.items():
     if isinstance(v, dict):
       if k in acc:
         acc[k] = concat_dict(acc[k], v)
@@ -140,12 +141,15 @@ def get_scores_and_plot(scorer,
 
   # Concatenate all trajectories
   xy = data_abs_xy.reshape(-1, data_abs_xy.shape[-1])
+  print("xy: %s x %s" % (len(xy),len(xy[0])))
   act = activations.reshape(-1, activations.shape[-1])
+  print("act: %s x %s" % (len(act), len(act[0])))
+  
   n_units = act.shape[1]
   # Get the rate-map for each unit
   s = [
       scorer.calculate_ratemap(xy[:, 0], xy[:, 1], act[:, i])
-      for i in xrange(n_units)
+      for i in range(n_units)
   ]
   # Get the scores
   score_60, score_90, max_60_mask, max_90_mask, sac = zip(
@@ -161,14 +165,15 @@ def get_scores_and_plot(scorer,
   cols = 16
   rows = int(np.ceil(n_units / cols))
   fig = plt.figure(figsize=(24, rows * 4))
-  for i in xrange(n_units):
+  for i in range(n_units):
     rf = plt.subplot(rows * 2, cols, i + 1)
     acr = plt.subplot(rows * 2, cols, n_units + i + 1)
     if i < n_units:
       index = ordering[i]
-      title = "%d (%.2f)" % (index, score_60[index])
+      title = "%d (%.2f, %.2f)" % (index, score_60[index], score_90[index])
       # Plot the activation maps
       scorer.plot_ratemap(s[index], ax=rf, title=title, cmap=cm)
+      
       # Plot the autocorrelation of the activation maps
       scorer.plot_sac(
           sac[index],
@@ -176,6 +181,7 @@ def get_scores_and_plot(scorer,
           ax=acr,
           title=title,
           cmap=cm)
+      
   # Save
   if not os.path.exists(directory):
     os.makedirs(directory)
