@@ -28,6 +28,10 @@ import scipy.signal
 
 # Returns matrix of zeroes and ones of size 39x39; coordinates range from -19 to 19
 # The cells/bins fitting within the radius have ones, others - zeroes
+#size:    x,y coordinates of the middle point of the circle mask
+#radius:  the radius of the circle mask
+#in_val:  the value used to indicate the IN area
+#out_val: the value used to indicate areas OUT of the mask
 def circle_mask(size, radius, in_val=1.0, out_val=0.0):
   """Calculating the grid scores with different radius."""
   sz = [math.floor(size[0] / 2), math.floor(size[1] / 2)]
@@ -87,6 +91,9 @@ class GridScorer(object):
     return (circle_mask(n_points, mask_max * self._nbins) *
             (1 - circle_mask(n_points, mask_min * self._nbins)))
 
+# a score of one of two formulas:
+#    1) min(corr_60, corr_120) - max(corr_30, corr_90, corr_150)
+#    2) (corr_60 + corr_120)/2 - (corr_30 + corr_90 + corr_150)/3
   def grid_score_60(self, corr):
     if self._min_max:
       return np.minimum(corr[60], corr[120]) - np.maximum(
@@ -94,15 +101,16 @@ class GridScorer(object):
     else:
       return (corr[60] + corr[120]) / 2 - (corr[30] + corr[90] + corr[150]) / 3
 
+# another score: corr_90 - (corr_45 + corr_135)/2
   def grid_score_90(self, corr):
     return corr[90] - (corr[45] + corr[135]) / 2
 
-  # seq1 - size 20x20
   def calculate_sac(self, seq1):
     """Calculating spatial autocorrelogram."""
     # this is NOT a copy - it's the same object referenced by 2 variables
     seq2 = seq1
 
+    # this function calculates correlation (...using an implementation of convolution)
     def filter2(b, x):
       # rotate the matrix b by 180 degrees  
       stencil = np.rot90(b, 2)
@@ -115,24 +123,26 @@ class GridScorer(object):
     # matrix 20x20 filled with ones
     ones_seq1 = np.ones(seq1.shape)
     # replace 1 with 0 whenever the corresponding element in seq1 is NaN
-    ones_seq1[np.isnan(seq1)] = 0
+    ones_seq1[np.isnan(seq1)] = 0   # sprawdzic bez tego    TODO
     ones_seq2 = np.ones(seq2.shape)
-    ones_seq2[np.isnan(seq2)] = 0
+    ones_seq2[np.isnan(seq2)] = 0   # sprawdzic bez tego    TODO
 
     # set NaN's to zeros
-    seq1[np.isnan(seq1)] = 0
-    seq2[np.isnan(seq2)] = 0
+    seq1[np.isnan(seq1)] = 0   # sprawdzic bez tego    TODO
+    seq2[np.isnan(seq2)] = 0   # sprawdzic bez tego    TODO
 
     # squared values
     seq1_sq = np.square(seq1)
+    seq2_sq = np.square(seq2)
 
     # seq1 convoluted with itself rotated by 180 degrees - what for??
-    seq1_x_seq2 = filter2(seq1, seq2)
-    sum_seq1 = filter2(seq1, ones_seq2)
-    sum_seq2 = filter2(ones_seq1, seq2)
-    sum_seq1_sq = filter2(seq1_sq, ones_seq2)
-    sum_seq2_sq = filter2(ones_seq1, seq2_sq)
-    n_bins = filter2(ones_seq1, ones_seq2)
+    seq1_x_seq2 = filter2(seq1, seq2)   # gradually increasing, full, and gradual decreasing of the area being convoluted
+                                        # size: (20 + 20-1)^2 -> 39 x 39
+    sum_seq1 = filter2(seq1, ones_seq2) # current element = the sum of the values considered for convolution from right-down to left-top
+    sum_seq2 = filter2(ones_seq1, seq2) # as above, but from left-top to right-down
+    sum_seq1_sq = filter2(seq1_sq, ones_seq2)   # current element = the of the values considered for convolution from right-down to left-top
+    sum_seq2_sq = filter2(ones_seq1, seq2_sq)   # as above, but left-top to right-down
+    n_bins = filter2(ones_seq1, ones_seq2)  # number of bins/cells being considered for convolution
     n_bins_sq = np.square(n_bins)
 
     std_seq1 = np.power(
